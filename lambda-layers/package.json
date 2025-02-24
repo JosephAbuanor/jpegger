@@ -1,0 +1,29 @@
+{
+  "name": "jpegger",
+  "version": "1.0.0",
+  "description": "This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JosephAbuanor/jpegger.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JosephAbuanor/jpegger/issues"
+  },
+  "homepage": "https://github.com/JosephAbuanor/jpegger#readme",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.750.0",
+    "@aws-sdk/client-dynamodb": "^3.751.0",
+    "@aws-sdk/client-ses": "^3.750.0",
+    "@aws-sdk/client-sfn": "^3.750.0",
+    "@aws-sdk/client-sns": "^3.750.0",
+    "@aws-sdk/client-sqs": "^3.750.0",
+    "@aws-sdk/lib-dynamodb": "^3.751.0",
+    "uuid": "^11.1.0"
+  }
+}
