@@ -8,7 +8,8 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 10
+    MemorySize: 512
     Runtime: nodejs22.x
     Tracing: Active
     # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
@@ -47,6 +48,10 @@ Parameters:
     Type: String
     Default: "eu-west-1"
 
+Conditions:
+  IsPrimaryRegion: !Equals [ !Ref AWS::Region, !Ref PrimaryRegion ]
+  IsDRRegion: !Not [ !Condition IsPrimaryRegion ]
+
 Resources:
   NodeModulesLayer:
     Type: AWS::Serverless::LayerVersion
@@ -69,7 +74,6 @@ Resources:
         HelloWorld:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            RestApiId: !Ref RestAPI
             Path: /hello
             Method: get
 
@@ -90,34 +94,30 @@ Resources:
       Tags:
         Stack: !Sub "${AWS::StackName}"
 
-  RestAPI:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: !Ref Env
-      TracingEnabled: true
-      Cors:
-        AllowMethods: "'GET,POST,PUT,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
-        AllowOrigin: "'*'"
-      Tags:
-        Name: !Sub "${AWS::StackName}-API"
-        Stack: !Sub "${AWS::StackName}"
-      Auth:
-        DefaultAuthorizer: LambdaTokenAuthorizer
-#        Authorizers:
-#          LambdaTokenAuthorizer:
-#            FunctionArn: !GetAtt AuthorizerFunction.Arn
-#            Identity:
-#              Headers:
-#                - Authorization
-      AccessLogSetting:
-        DestinationArn: !GetAtt AccessLogs.Arn
-        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","routeKey":"$context.routeKey", "status":"$context.status","protocol":"$context.protocol", "integrationStatus": $context.integrationStatus, "integrationLatency": $context.integrationLatency, "responseLength":"$context.responseLength" }'
-      MethodSettings:
-        - ResourcePath: "/*"
-          LoggingLevel: INFO
-          HttpMethod: "*"
-          DataTraceEnabled: True
+#  RestAPI:
+#    Type: AWS::Serverless::Api
+#    Properties:
+#      StageName: !Ref Env
+#      TracingEnabled: true
+#      Tags:
+#        Name: !Sub "${AWS::StackName}-API"
+#        Stack: !Sub "${AWS::StackName}"
+#      Auth:
+#        DefaultAuthorizer: LambdaTokenAuthorizer
+##        Authorizers:
+##          LambdaTokenAuthorizer:
+##            FunctionArn: !GetAtt AuthorizerFunction.Arn
+##            Identity:
+##              Headers:
+##                - Authorization
+#      AccessLogSetting:
+#        DestinationArn: !GetAtt AccessLogs.Arn
+#        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","routeKey":"$context.routeKey", "status":"$context.status","protocol":"$context.protocol", "integrationStatus": $context.integrationStatus, "integrationLatency": $context.integrationLatency, "responseLength":"$context.responseLength" }'
+#      MethodSettings:
+#        - ResourcePath: "/*"
+#          LoggingLevel: INFO
+#          HttpMethod: "*"
+#          DataTraceEnabled: True
 
   AccessLogs:
     Type: AWS::Logs::LogGroup
@@ -214,14 +214,156 @@ Resources:
       Domain: !Ref UserPoolClient
       UserPoolId: !Ref UserPool
 
+  # DynamoDB Table
+  ImagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Images
+      AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: ImageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+        - AttributeName: ImageId
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  StagingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-staging-bucket'
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  PrimaryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-primary-bucket'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+      ReplicationConfiguration: !If
+        - IsPrimaryRegion
+        - Role: !GetAtt S3ReplicationRole.Arn
+          Rules:
+            - Destination:
+                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin'
+              Status: Enabled
+              Prefix: ""
+        - !Ref 'AWS::NoValue'
+
+  BucketBin:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-bucket-bin'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      VersioningConfiguration:
+        Status: Enabled
+
+  S3ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReplicationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ReplicateObject
+                  - s3:ReplicateDelete
+                  - s3:ReplicateTags
+                  - s3:GetObjectVersionForReplication
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                Resource:
+                  - !If
+                    - IsPrimaryRegion
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket'
+                    - !Ref 'AWS::NoValue'
+                  - !If
+                    - IsPrimaryRegion
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket/*'
+                    - !Ref 'AWS::NoValue'
+                  - !If
+                    - IsDRRegion
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin'
+                    - !Ref 'AWS::NoValue'
+                  - !If
+                    - IsDRRegion
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin/*'
+                    - !Ref 'AWS::NoValue'
+
+  ImageUploadHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/image-upload.handler
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref StagingBucket
+      Events:
+        UploadImageApi:
+          Type: Api
+          Properties:
+            Path: /upload
+            Method: post
+      Environment:
+        Variables:
+          STAGING_BUCKET: !Ref StagingBucket
+
+  RestAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+      IdentitySource: method.request.header.Authorization
+      Name: CustomTokenAuthorizer
+      RestApiId: !Sub ${ServerlessRestApi}
+      Type: TOKEN
+
 
 Outputs:
   HelloWorldApi:
     Description: API Gateway endpoint URL for Prod stage for Hello World function
-    Value: !Sub "https://${RestAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
   HelloWorldFunction:
     Description: Hello World Lambda Function ARN
     Value: !GetAtt HelloWorldFunction.Arn
   HelloWorldFunctionIamRole:
     Description: Implicit IAM Role created for Hello World function
     Value: !GetAtt HelloWorldFunctionRole.Arn
+  StagingBucketName:
+    Value: !Ref StagingBucket
+  PrimaryBucketName:
+    Value: !Ref PrimaryBucket
+  ImagesTableName:
+    Value: !Ref ImagesTable
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
