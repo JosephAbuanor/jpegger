@@ -7,6 +7,7 @@ const s3 = new S3();
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const STAGING_BUCKET_NAME = process.env.STAGING_BUCKET;
 const TABLE_NAME = process.env.TABLE_NAME;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
 export const handler = async (event) => {
     console.log('Event received:', JSON.stringify(event, null, 2));
@@ -29,6 +30,11 @@ export const handler = async (event) => {
             );
         } catch (error) {
             return createResponse(400, { message: 'Invalid image data' });
+        }
+
+        // 🔴 Reject images larger than 5MB
+        if (imageBuffer.length > MAX_IMAGE_SIZE) {
+            return createResponse(400, { message: `Image too large. Max size allowed is ${MAX_IMAGE_SIZE / (1024 * 1024)}MB` });
         }
 
         const imageId = uuidv4();
