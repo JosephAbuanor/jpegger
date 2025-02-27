@@ -94,30 +94,6 @@ Resources:
       Tags:
         Stack: !Sub "${AWS::StackName}"
 
-#  RestAPI:
-#    Type: AWS::Serverless::Api
-#    Properties:
-#      StageName: !Ref Env
-#      TracingEnabled: true
-#      Tags:
-#        Name: !Sub "${AWS::StackName}-API"
-#        Stack: !Sub "${AWS::StackName}"
-#      Auth:
-#        DefaultAuthorizer: LambdaTokenAuthorizer
-##        Authorizers:
-##          LambdaTokenAuthorizer:
-##            FunctionArn: !GetAtt AuthorizerFunction.Arn
-##            Identity:
-##              Headers:
-##                - Authorization
-#      AccessLogSetting:
-#        DestinationArn: !GetAtt AccessLogs.Arn
-#        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","routeKey":"$context.routeKey", "status":"$context.status","protocol":"$context.protocol", "integrationStatus": $context.integrationStatus, "integrationLatency": $context.integrationLatency, "responseLength":"$context.responseLength" }'
-#      MethodSettings:
-#        - ResourcePath: "/*"
-#          LoggingLevel: INFO
-#          HttpMethod: "*"
-#          DataTraceEnabled: True
 
   AccessLogs:
     Type: AWS::Logs::LogGroup
@@ -327,6 +303,8 @@ Resources:
       Policies:
         - S3WritePolicy:
             BucketName: !Ref StagingBucket
+        - DynamoDBWritePolicy:
+            TableName: !Ref ImagesTable
       Events:
         UploadImageApi:
           Type: Api
@@ -335,7 +313,28 @@ Resources:
             Method: post
       Environment:
         Variables:
+          TABLE_NAME: !Ref ImagesTable
           STAGING_BUCKET: !Ref StagingBucket
+
+  FetchAllImagesHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/all-images.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ImagesTable
+        - S3ReadPolicy:
+            BucketName: !Ref StagingBucket
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ImagesTable
+          STAGING_BUCKET: !Ref StagingBucket
+      Events:
+        FetchAllImagesApi:
+          Type: Api
+          Properties:
+            Path: /images
+            Method: GET
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer
@@ -345,7 +344,6 @@ Resources:
       Name: CustomTokenAuthorizer
       RestApiId: !Sub ${ServerlessRestApi}
       Type: TOKEN
-
 
 Outputs:
   HelloWorldApi:

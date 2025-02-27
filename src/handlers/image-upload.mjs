@@ -1,21 +1,17 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import {S3} from '@aws-sdk/client-s3';
+import { S3 } from '@aws-sdk/client-s3';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
 const s3 = new S3();
-const dynamoDB = new DynamoDB.DocumentClient();
+const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const STAGING_BUCKET_NAME = process.env.STAGING_BUCKET;
+const TABLE_NAME = process.env.TABLE_NAME;
 
-/**
- * Lambda function to handle image uploads to the primary bucket
- * Processes the incoming image data, stores it in the primary bucket,
- * and adds an entry to the DynamoDB Images table
- */
 export const handler = async (event) => {
     console.log('Event received:', JSON.stringify(event, null, 2));
 
     try {
-        // Parse the request body
         const body = JSON.parse(event.body || '{}');
         const { image, userId, contentType, filename } = body;
 
@@ -25,7 +21,6 @@ export const handler = async (event) => {
             });
         }
 
-        // Decode the base64 image
         let imageBuffer;
         try {
             imageBuffer = Buffer.from(
@@ -36,13 +31,10 @@ export const handler = async (event) => {
             return createResponse(400, { message: 'Invalid image data' });
         }
 
-        // Generate a unique image ID
         const imageId = uuidv4();
         const imageName = filename || `${imageId}.${getExtensionFromContentType(contentType)}`;
-
         const bucketName = STAGING_BUCKET_NAME;
 
-        // Upload to S3
         const s3Params = {
             Bucket: bucketName,
             Key: `${userId}/${imageId}/${imageName}`,
@@ -55,11 +47,10 @@ export const handler = async (event) => {
             }
         };
 
-        const s3Result = await s3.putObject(s3Params).promise();
+        const s3Result = await s3.putObject(s3Params);
 
-        // Save metadata to DynamoDB
         const dbParams = {
-            TableName: 'Images',
+            TableName: TABLE_NAME,
             Item: {
                 UserId: userId,
                 ImageId: imageId,
@@ -73,9 +64,8 @@ export const handler = async (event) => {
             }
         };
 
-        await dynamoDB.put(dbParams).promise();
+        await dynamoDB.put(dbParams);
 
-        // Return the success response
         return createResponse(200, {
             message: 'Image uploaded successfully',
             imageId: imageId,
@@ -88,14 +78,11 @@ export const handler = async (event) => {
     }
 };
 
-/**
- * Helper function to create a standardized API response
- */
 function createResponse(statusCode, body) {
     return {
         statusCode: statusCode,
         headers: {
-            'Access-Control-Allow-Origin': '*', // For CORS support
+            'Access-Control-Allow-Origin': '*',
             "Access-Control-Allow-Methods": "OPTIONS, POST",
             "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
@@ -103,9 +90,6 @@ function createResponse(statusCode, body) {
     };
 }
 
-/**
- * Helper function to get file extension from content type
- */
 function getExtensionFromContentType(contentType) {
     const mapping = {
         'image/jpeg': 'jpg',
