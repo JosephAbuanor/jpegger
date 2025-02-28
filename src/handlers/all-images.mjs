@@ -1,8 +1,8 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { S3 } from '@aws-sdk/client-s3';
+import { S3, GetObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { Readable } from 'stream';
 import { Buffer } from 'buffer';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const s3 = new S3();
@@ -19,20 +19,40 @@ export const handler = async (event) => {
 
         const result = await dynamoDB.scan(dbParams);
         const images = await Promise.all(result.Items.map(async (item) => {
-            const s3Params = {
-                Bucket: STAGING_BUCKET_NAME,
-                Key: item.S3Key,
-            };
-            const s3Object = await s3.getObject(s3Params);
+            // const s3Params = {
+            //     Bucket: STAGING_BUCKET_NAME,
+            //     Key: item.S3Key,
+            // };
+            // const s3Object = await s3.getObject(s3Params);
+            //
+            // // Convert stream to Buffer
+            // const imageBuffer = await streamToBuffer(s3Object.Body);
+            // const imageBase64 = imageBuffer.toString('base64');
+            //
+            // return {
+            //     ...item,
+            //     image: `data:${item.ContentType};base64,${imageBase64}`
+            // };
 
-            // Convert stream to Buffer
-            const imageBuffer = await streamToBuffer(s3Object.Body);
-            const imageBase64 = imageBuffer.toString('base64');
+            try {
+                const signedUrl = await getSignedUrl(
+                    s3,
+                    new GetObjectCommand({
+                        Bucket: STAGING_BUCKET_NAME,
+                        Key: item.S3Key
+                    }),
+                    { expiresIn: 3600 } // 1-hour expiry
+                );
 
-            return {
-                ...item,
-                image: `data:${item.ContentType};base64,${imageBase64}`
-            };
+                console.log({...item, imageUrl: signedUrl});
+                return {
+                    ...item,
+                    imageUrl: signedUrl
+                };
+            } catch (s3Error) {
+                console.error(`Error fetching image URL for ${item.S3Key}:`, s3Error);
+                return { ...item, imageUrl: null, error: 'Error fetching image' };
+            }
         }));
 
         return createResponse(200, {

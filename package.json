@@ -18,14 +18,16 @@
   "homepage": "https://github.com/JosephAbuanor/jpegger#readme",
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.750.0",
-    "@aws-sdk/client-dynamodb": "^3.751.0",
-    "@aws-sdk/client-s3": "^3.750.0",
-    "@aws-sdk/client-ses": "^3.750.0",
-    "@aws-sdk/client-sfn": "^3.750.0",
-    "@aws-sdk/client-sns": "^3.750.0",
-    "@aws-sdk/client-sqs": "^3.750.0",
-    "@aws-sdk/lib-dynamodb": "^3.751.0",
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-ses": "^3.758.0",
+    "@aws-sdk/client-sfn": "^3.758.0",
+    "@aws-sdk/client-sns": "^3.758.0",
+    "@aws-sdk/client-sqs": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "@aws-sdk/s3-request-presigner": "^3.758.0",
     "aws-sdk": "^2.1692.0",
+    "sharp": "^0.33.5",
     "uuid": "^11.1.0"
   }
 }

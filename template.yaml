@@ -205,6 +205,16 @@ Resources:
           KeyType: HASH
         - AttributeName: ImageId
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
@@ -335,6 +345,96 @@ Resources:
           Properties:
             Path: /images
             Method: GET
+
+  FetchUserImagesHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/user-images.handler
+      MemorySize: 128
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ImagesTable
+        - S3ReadPolicy:
+            BucketName: !Ref StagingBucket
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ImagesTable
+          STAGING_BUCKET: !Ref StagingBucket
+      Events:
+        FetchUserImagesApi:
+          Type: Api
+          Properties:
+            Path: /user-images
+            Method: get
+
+  FetchDeletedImagesHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/fetch-deleted-images.handler
+      MemorySize: 128
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ImagesTable
+        - S3ReadPolicy:
+            BucketName: !Ref BucketBin
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ImagesTable
+          BIN_BUCKET: !Ref BucketBin
+      Events:
+        FetchUserImagesApi:
+          Type: Api
+          Properties:
+            Path: /deleted-images
+            Method: get
+
+#TODO: change from staging bucket to primary bucket
+  SoftDeleteImageHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/soft-delete-image.handler
+      MemorySize: 128
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref StagingBucket
+        - S3WritePolicy:
+            BucketName: !Ref BucketBin
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImagesTable
+      Environment:
+        Variables:
+          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_BIN: !Ref BucketBin
+          TABLE_NAME: !Ref ImagesTable
+      Events:
+        MoveImageApi:
+          Type: Api
+          Properties:
+            Path: /soft-delete-image
+            Method: post
+
+#TODO: add watermark handler
+#  WatermarkHandler:
+#    Type: AWS::Serverless::Function
+#    Properties:
+#      MemorySize: 1024
+#      Timeout: 10
+#      Handler: src/handlers/watermark.handler
+#      Policies:
+#        - S3ReadPolicy:
+#            BucketName: !Ref StagingBucket
+#        - S3WritePolicy:
+#            BucketName: !Ref PrimaryBucket
+#      Environment:
+#        Variables:
+#          PRIMARY_BUCKET: !Ref PrimaryBucket
+#          REGION: !Ref PrimaryRegion
+#      Events:
+#        S3UploadEvent:
+#          Type: S3
+#          Properties:
+#            Bucket: !Ref StagingBucket
+#            Events: s3:ObjectCreated:*
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer
