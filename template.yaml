@@ -413,6 +413,52 @@ Resources:
             Path: /soft-delete-image
             Method: post
 
+#TODO: change from staging bucket to primary bucket
+  RestoreImageHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/restore-image.handler
+      MemorySize: 128
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketBin
+        - S3WritePolicy:
+            BucketName: !Ref StagingBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImagesTable
+      Environment:
+        Variables:
+          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_BIN: !Ref BucketBin
+          TABLE_NAME: !Ref ImagesTable
+      Events:
+        MoveImageApi:
+          Type: Api
+          Properties:
+            Path: /restore-image
+            Method: post
+
+  PermanentDeleteImageHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/permanent-delete-image.handler
+      MemorySize: 128
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketBin
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImagesTable
+      Environment:
+        Variables:
+          BUCKET_BIN: !Ref BucketBin
+          TABLE_NAME: !Ref ImagesTable
+      Events:
+        PermanentDeleteImageApi:
+          Type: Api
+          Properties:
+            Path: /delete-image
+            Method: post
+
 #TODO: add watermark handler
 #  WatermarkHandler:
 #    Type: AWS::Serverless::Function

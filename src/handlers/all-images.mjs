@@ -15,24 +15,14 @@ export const handler = async (event) => {
     try {
         const dbParams = {
             TableName: TABLE_NAME,
+            FilterExpression: 'S3Bucket = :bucket',
+            ExpressionAttributeValues: {
+                ':bucket': STAGING_BUCKET_NAME
+            }
         };
 
         const result = await dynamoDB.scan(dbParams);
         const images = await Promise.all(result.Items.map(async (item) => {
-            // const s3Params = {
-            //     Bucket: STAGING_BUCKET_NAME,
-            //     Key: item.S3Key,
-            // };
-            // const s3Object = await s3.getObject(s3Params);
-            //
-            // // Convert stream to Buffer
-            // const imageBuffer = await streamToBuffer(s3Object.Body);
-            // const imageBase64 = imageBuffer.toString('base64');
-            //
-            // return {
-            //     ...item,
-            //     image: `data:${item.ContentType};base64,${imageBase64}`
-            // };
 
             try {
                 const signedUrl = await getSignedUrl(
