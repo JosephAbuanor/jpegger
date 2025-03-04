@@ -6,7 +6,6 @@ version = 0.1
 stack_name = "jpegger"
 
 [default.build.parameters]
-cached = true
 parallel = true
 
 [default.validate.parameters]

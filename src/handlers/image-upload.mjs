@@ -1,20 +1,23 @@
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { S3 } from '@aws-sdk/client-s3';
-import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
-import { v4 as uuidv4 } from 'uuid';
+import {DynamoDB} from '@aws-sdk/client-dynamodb';
+import {S3} from '@aws-sdk/client-s3';
+import {DynamoDBDocument} from '@aws-sdk/lib-dynamodb';
+import {v4 as uuidv4} from 'uuid';
+import {Lambda} from '@aws-sdk/client-lambda';
 
 const s3 = new S3();
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const STAGING_BUCKET_NAME = process.env.STAGING_BUCKET;
 const TABLE_NAME = process.env.TABLE_NAME;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+const WATERMARK_HANDLER_NAME = process.env.WATERMARK_HANDLER_NAME;
+const lambda = new Lambda();
 
 export const handler = async (event) => {
     console.log('Event received:', JSON.stringify(event, null, 2));
 
     try {
         const body = JSON.parse(event.body || '{}');
-        const { image, userId, contentType, filename } = body;
+        const {image, userId, contentType, filename} = body;
 
         if (!image || !userId || !contentType) {
             return createResponse(400, {
@@ -29,12 +32,12 @@ export const handler = async (event) => {
                 'base64'
             );
         } catch (error) {
-            return createResponse(400, { message: 'Invalid image data' });
+            return createResponse(400, {message: 'Invalid image data'});
         }
 
         // 🔴 Reject images larger than 5MB
         if (imageBuffer.length > MAX_IMAGE_SIZE) {
-            return createResponse(400, { message: `Image too large. Max size allowed is ${MAX_IMAGE_SIZE / (1024 * 1024)}MB` });
+            return createResponse(400, {message: `Image too large. Max size allowed is ${MAX_IMAGE_SIZE / (1024 * 1024)}MB`});
         }
 
         const imageId = uuidv4();
@@ -71,7 +74,26 @@ export const handler = async (event) => {
         };
 
         await dynamoDB.put(dbParams);
+        console.log('Image uploaded to S3 and DynamoDB');
 
+        try {
+            // Invoke the watermark handler
+            const lambdaParams = {
+                FunctionName: WATERMARK_HANDLER_NAME,
+                InvocationType: 'Event', // Asynchronous invocation
+                Payload: JSON.stringify({
+                    imageId: imageId,
+                    userId: userId,
+                    s3Key: `${userId}/${imageId}/${imageName}`
+                })
+            };
+
+            await lambda.invoke(lambdaParams);
+
+            console.log('Watermark handler invoked');
+        } catch (error) {
+            console.error('Error invoking watermark handler:', error);
+        }
         return createResponse(200, {
             message: 'Image uploaded successfully',
             imageId: imageId,
@@ -80,7 +102,7 @@ export const handler = async (event) => {
 
     } catch (error) {
         console.error('Error uploading image:', error);
-        return createResponse(500, { message: 'Error uploading image', error: error.message });
+        return createResponse(500, {message: 'Error uploading image', error: error.message});
     }
 };
 

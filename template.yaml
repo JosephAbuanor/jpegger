@@ -315,6 +315,8 @@ Resources:
             BucketName: !Ref StagingBucket
         - DynamoDBWritePolicy:
             TableName: !Ref ImagesTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref WatermarkHandler
       Events:
         UploadImageApi:
           Type: Api
@@ -325,6 +327,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref ImagesTable
           STAGING_BUCKET: !Ref StagingBucket
+          WATERMARK_HANDLER_NAME: !Ref WatermarkHandler
 
   FetchAllImagesHandler:
     Type: AWS::Serverless::Function
@@ -459,22 +462,62 @@ Resources:
             Path: /delete-image
             Method: post
 
-#TODO: add watermark handler
-#  WatermarkHandler:
-#    Type: AWS::Serverless::Function
+  #TODO: change from staging bucket to primary bucket
+  ShareImageHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/share-image.handler
+      MemorySize: 128
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref StagingBucket
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref StagingBucket
+      Events:
+        ShareImageApi:
+          Type: Api
+          Properties:
+            Path: /share-image
+            Method: post
+
+#  WatermarkLambdaExecutionRole:
+#    Type: AWS::IAM::Role
 #    Properties:
-#      MemorySize: 1024
-#      Timeout: 10
-#      Handler: src/handlers/watermark.handler
+#      AssumeRolePolicyDocument:
+#        Version: '2012-10-17'
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service: lambda.amazonaws.com
+#            Action: sts:AssumeRole
 #      Policies:
-#        - S3ReadPolicy:
-#            BucketName: !Ref StagingBucket
-#        - S3WritePolicy:
-#            BucketName: !Ref PrimaryBucket
-#      Environment:
-#        Variables:
-#          PRIMARY_BUCKET: !Ref PrimaryBucket
-#          REGION: !Ref PrimaryRegion
+#        - PolicyName: WatermarkLambdaPolicy
+#          PolicyDocument:
+#            Version: '2012-10-17'
+#            Statement:
+#              - Effect: Allow
+#                Action:
+#                  - s3:GetObject
+#                  - s3:PutObject
+#                Resource: "*"
+
+#TODO: add watermark handler
+  WatermarkHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 1024
+      Timeout: 10
+      Handler: src/handlers/watermark.handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref StagingBucket
+        - S3WritePolicy:
+            BucketName: !Ref PrimaryBucket
+      Environment:
+        Variables:
+          PRIMARY_BUCKET: !Ref PrimaryBucket
+          REGION: !Ref PrimaryRegion
 #      Events:
 #        S3UploadEvent:
 #          Type: S3

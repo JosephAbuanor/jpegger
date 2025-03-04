@@ -17,7 +17,7 @@ export const handler = async (event) => {
         if (!userId) {
             return createResponse(400, { message: 'Missing required parameter: userId' });
         }
-        // todo: switch to primary bucket
+        // todo: switch to primary bucket 2
         const dbParams = {
             TableName: TABLE_NAME,
             IndexName: "UserIdIndex",
