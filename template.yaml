@@ -481,26 +481,6 @@ Resources:
             Path: /share-image
             Method: post
 
-#  WatermarkLambdaExecutionRole:
-#    Type: AWS::IAM::Role
-#    Properties:
-#      AssumeRolePolicyDocument:
-#        Version: '2012-10-17'
-#        Statement:
-#          - Effect: Allow
-#            Principal:
-#              Service: lambda.amazonaws.com
-#            Action: sts:AssumeRole
-#      Policies:
-#        - PolicyName: WatermarkLambdaPolicy
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - s3:GetObject
-#                  - s3:PutObject
-#                Resource: "*"
 
 #TODO: add watermark handler
   WatermarkHandler:
@@ -512,18 +492,13 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref StagingBucket
-        - S3WritePolicy:
+        - S3CrudPolicy:
             BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
           PRIMARY_BUCKET: !Ref PrimaryBucket
+          STAGING_BUCKET: !Ref StagingBucket
           REGION: !Ref PrimaryRegion
-#      Events:
-#        S3UploadEvent:
-#          Type: S3
-#          Properties:
-#            Bucket: !Ref StagingBucket
-#            Events: s3:ObjectCreated:*
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer
