@@ -94,7 +94,6 @@ Resources:
       Tags:
         Stack: !Sub "${AWS::StackName}"
 
-
   AccessLogs:
     Type: AWS::Logs::LogGroup
     DependsOn: ApiLoggingRole
