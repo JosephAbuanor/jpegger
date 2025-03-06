@@ -222,7 +222,7 @@ Resources:
   StagingBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${AWS::StackName}-staging-bucket'
+      BucketName: !Sub '${AWS::StackName}-staging-bucket-${AWS::Region}'
       NotificationConfiguration:
         EventBridgeConfiguration:
           EventBridgeEnabled: true
@@ -235,7 +235,7 @@ Resources:
   PrimaryBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${AWS::StackName}-primary-bucket'
+      BucketName: !Sub '${AWS::StackName}-primary-bucket-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -248,7 +248,7 @@ Resources:
         - Role: !GetAtt S3ReplicationRole.Arn
           Rules:
             - Destination:
-                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin'
+                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}'
               Status: Enabled
               Prefix: ""
         - !Ref 'AWS::NoValue'
@@ -256,7 +256,7 @@ Resources:
   BucketBin:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${AWS::StackName}-bucket-bin'
+      BucketName: !Sub '${AWS::StackName}-bucket-bin-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -291,19 +291,19 @@ Resources:
                 Resource:
                   - !If
                     - IsPrimaryRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket'
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}'
                     - !Ref 'AWS::NoValue'
                   - !If
                     - IsPrimaryRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket/*'
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}/*'
                     - !Ref 'AWS::NoValue'
                   - !If
                     - IsDRRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin'
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}'
                     - !Ref 'AWS::NoValue'
                   - !If
                     - IsDRRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin/*'
+                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}/*'
                     - !Ref 'AWS::NoValue'
 
   ImageUploadHandler:
