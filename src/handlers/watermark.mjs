@@ -1,152 +1,100 @@
-import { S3 } from "@aws-sdk/client-s3";
+import {S3} from "@aws-sdk/client-s3";
 import sharp from "sharp";
 import {DynamoDB} from '@aws-sdk/client-dynamodb';
 import {DynamoDBDocument} from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
 
-const s3 = new S3({ region: process.env.REGION });
+const s3 = new S3({region: process.env.REGION});
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
-const PRIMARY_BUCKET = process.env.PRIMARY_BUCKET;
 const STAGING_BUCKET = process.env.STAGING_BUCKET;
-const TABLE_NAME = process.env.TABLE_NAME;
+const PROCESSED_BUCKET = process.env.PRIMARY_BUCKET;
+const DYNAMODB_TABLE = process.env.TABLE_NAME;
 
-export const handler = async (event) => {
-    console.log("Event received:", JSON.stringify(event, null, 2));
-
-    const { s3Key, userId } = event;
-
-    if (!s3Key || !userId) {
-        console.error("Invalid event structure. S3Key or UserId missing");
-        return createResponse(400, { message: "Invalid event structure. S3Key or UserId missing" });
-    }
-
+exports.handler = async (event) => {
     try {
-        const bucketName = STAGING_BUCKET;
-        const objectKey = decodeURIComponent(s3Key.replace(/\+/g, " "));
+        for (const record of event.Records) {
+            const { bucket, object } = record.s3;
+            const imageKey = object.key;
 
-        console.log(`Processing image from ${bucketName}/${objectKey}`);
+            // Extract user metadata (Assume filename contains user info)
+            // const userName = extractUserName(imageKey);
+            const userName = imageKey;
+            const uploadDate = new Date().toISOString().split("T")[0];
 
-        // Get the image from S3
-        const s3Object = await s3.getObject({ Bucket: bucketName, Key: objectKey });
-        const imageBuffer = await s3Object.Body;
+            // Get the uploaded image from S3
+            const image = await s3
+                .getObject({ Bucket: bucket.name, Key: imageKey })
+                .promise();
 
+            const imageBuffer = image.Body;
 
-        // Extract username and create watermark text
-        const userName = extractUserName(objectKey);
-        const uploadDate = new Date().toISOString().split("T")[0];
-        const watermarkText = `${userName} - ${uploadDate}`;
+            // Get image metadata (width & height)
+            const metadata = await sharp(imageBuffer).metadata();
+            const { width, height } = metadata;
 
-        console.log(`Adding watermark: ${watermarkText}`);
+            // Generate watermark text
+            const watermarkText = `${userName} - ${uploadDate}`;
+            // Create a watermark overlay
+            const watermark = await sharp({
+                text: {
+                    text: watermarkText,
+                    font: "sans",
+                    rgba: true,
+                    width: Math.floor(width * 0.5),
+                    height: Math.floor(height * 0.1),
+                    align: "center",
+                },
+            })
+                .png()
+                .toBuffer();
 
+            // Process the image with Sharp (Adding watermark)
+            const processedBuffer = await sharp(image.Body)
+                .composite([{ input: watermark, gravity: "southeast" }]) // Position watermark
+                .toFormat("png")
+                .toBuffer();
 
-        // Get image metadata (width & height)
-        const metadata = await sharp(imageBuffer).metadata();
-        const { width, height } = metadata;
+            // Define the new processed image key
+            const newImageKey = `processed/${imageKey}`;
 
-        // Create a watermark overlay
-        const watermark = await sharp({
-            text: {
-                text: watermarkText,
-                font: "sans",
-                rgba: true,
-                width: Math.floor(width * 0.5),
-                height: Math.floor(height * 0.1),
-                align: "center",
-            },
-        })
-            .png()
-            .toBuffer();
+            // Upload processed image to Primary S3 bucket
+            await s3
+                .putObject({
+                    Bucket: PROCESSED_BUCKET,
+                    Key: newImageKey,
+                    Body: processedBuffer,
+                    ContentType: "image/png",
+                })
+                .promise();
 
-        console.log("Watermark overlay created");
+            // Save metadata in DynamoDB
+            await dynamoDB
+                .put({
+                    TableName: DYNAMODB_TABLE,
+                    Item: {
+                        id: uuidv4(),
+                        imageId: imageKey,
+                        userName: userName,
+                        processedUrl: `https://${PROCESSED_BUCKET}.s3.amazonaws.com/${newImageKey}`,
+                        uploadDate: uploadDate,
+                    },
+                })
+                .promise();
 
-        // Process the image with Sharp (Adding watermark)
-        const watermarkedImageBuffer = await sharp(s3Object.Body)
-            .composite([{ input: watermark, gravity: "southeast" }]) // Position watermark
-            .toFormat("png")
-            .toBuffer();
+            // Delete original image from Staging bucket
+            await s3
+                .deleteObject({ Bucket: STAGING_BUCKET, Key: imageKey })
+                .promise();
 
-
-        // Save processed image to primary bucket
-        const processedKey = `processed/${objectKey}`;
-        await s3.putObject({
-            Bucket: PRIMARY_BUCKET,
-            Key: processedKey,
-            Body: watermarkedImageBuffer,
-            ContentType: "image/png",
-        });
-
-        const [userId, imageId, imageName] = s3Key.split('/');
-
-        console.log(`Image processed and saved to ${PRIMARY_BUCKET}/${processedKey}`);
-
-// Save metadata in DynamoDB
-        await dynamoDB.put({
-            TableName: TABLE_NAME,
-            Item: {
-                UserId: userId,
-                ImageId: imageId,
-                Filename: imageName,
-                ContentType: "image/png",
-                S3Key: s3Key,
-                S3Bucket: PRIMARY_BUCKET,
-                ProcessedUrl: `https://${PRIMARY_BUCKET}.s3.amazonaws.com/${processedKey}`,
-                CreatedAt: uploadDate,
-                Size: imageBuffer.length
-            }
-        });
-
-        // Delete original image from Staging bucket
-        await s3
-            .deleteObject({ Bucket: STAGING_BUCKET, Key: s3Key });
-
-        console.log(`Successfully processed ${s3Key}`);
-
-        console.log(`Watermarked image saved to ${PRIMARY_BUCKET}/${processedKey}`);
-        return createResponse(200, { message: "Watermark added successfully", key: processedKey });
-
+            console.log(`Successfully processed ${imageKey}`);
+        }
     } catch (error) {
-        console.error("Error adding watermark:", error);
-        return createResponse(500, { message: "Error adding watermark", error: error.message });
+        console.error("Error processing image:", error);
+        throw error;
     }
 };
 
-// Function to apply watermark using canvas
-async function applyWatermark(imageBuffer, watermarkText) {
-    const image = await loadImage(imageBuffer);
-    const canvas = createCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d");
-
-    // Draw original image
-    ctx.drawImage(image, 0, 0, image.width, image.height);
-
-    // Watermark settings
-    ctx.font = "32px Arial";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";  // White semi-transparent
-    ctx.textAlign = "left";
-    ctx.textBaseline = "bottom";
-
-    // Position watermark at bottom-left corner
-    const padding = 20;
-    ctx.fillText(watermarkText, padding, image.height - padding);
-
-    // Convert to buffer
-    return canvas.toBuffer("image/jpeg");
-}
-
-// Extract username from S3 key
-function extractUserName(objectKey) {
-    const parts = objectKey.split("/");
-    return parts.length > 1 ? parts[0] : "UnknownUser";
-}
-
-// Create API response
-function createResponse(statusCode, body) {
-    return {
-        statusCode,
-        headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS, GET, POST",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
-        body: JSON.stringify(body),
-    };
+// Extract user's name from filename (Adjust logic based on actual naming convention)
+function extractUserName(fileName) {
+    return fileName.split("_")[0] || "UnknownUser";
 }

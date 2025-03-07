@@ -10,7 +10,7 @@ Globals:
   Function:
     Timeout: 10
     MemorySize: 512
-    Runtime: nodejs22.x
+    Runtime: nodejs18.x
     Tracing: Active
     # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
     LoggingConfig:
@@ -60,14 +60,14 @@ Resources:
       Description: Contains node_modules for Lambda functions
       ContentUri: lambda-layers/
       CompatibleRuntimes:
-        - nodejs22.x
+        - nodejs18.x
 
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: src/
       Handler: app.lambdaHandler
-      Runtime: nodejs22.x
+      Runtime: nodejs18.x
       Architectures:
         - x86_64
       Events:
@@ -84,7 +84,7 @@ Resources:
         - !Ref NodeModulesLayer
       CodeUri: src/
       Handler: authorizer.handler
-      Runtime: nodejs22.x
+      Runtime: nodejs18.x
       Description: Handler for Lambda authorizer
       Environment:
         Variables:
