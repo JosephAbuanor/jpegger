@@ -498,6 +498,7 @@ Resources:
           PRIMARY_BUCKET: !Ref PrimaryBucket
           STAGING_BUCKET: !Ref StagingBucket
           REGION: !Ref PrimaryRegion
+          TABLE_NAME: !Ref ImagesTable
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer

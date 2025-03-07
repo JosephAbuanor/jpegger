@@ -1,10 +1,13 @@
 import { S3 } from "@aws-sdk/client-s3";
-import { createCanvas, loadImage } from "canvas";
-import { Readable } from "stream";
+import sharp from "sharp";
+import {DynamoDB} from '@aws-sdk/client-dynamodb';
+import {DynamoDBDocument} from '@aws-sdk/lib-dynamodb';
 
 const s3 = new S3({ region: process.env.REGION });
+const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const PRIMARY_BUCKET = process.env.PRIMARY_BUCKET;
 const STAGING_BUCKET = process.env.STAGING_BUCKET;
+const TABLE_NAME = process.env.TABLE_NAME;
 
 export const handler = async (event) => {
     console.log("Event received:", JSON.stringify(event, null, 2));
@@ -24,15 +27,43 @@ export const handler = async (event) => {
 
         // Get the image from S3
         const s3Object = await s3.getObject({ Bucket: bucketName, Key: objectKey });
-        const imageBuffer = await s3Object.Body.transformToByteArray();
+        const imageBuffer = await s3Object.Body;
 
-        // Extract user name and create watermark text
+
+        // Extract username and create watermark text
         const userName = extractUserName(objectKey);
         const uploadDate = new Date().toISOString().split("T")[0];
         const watermarkText = `${userName} - ${uploadDate}`;
 
-        // Apply watermark using canvas
-        const watermarkedImageBuffer = await applyWatermark(imageBuffer, watermarkText);
+        console.log(`Adding watermark: ${watermarkText}`);
+
+
+        // Get image metadata (width & height)
+        const metadata = await sharp(imageBuffer).metadata();
+        const { width, height } = metadata;
+
+        // Create a watermark overlay
+        const watermark = await sharp({
+            text: {
+                text: watermarkText,
+                font: "sans",
+                rgba: true,
+                width: Math.floor(width * 0.5),
+                height: Math.floor(height * 0.1),
+                align: "center",
+            },
+        })
+            .png()
+            .toBuffer();
+
+        console.log("Watermark overlay created");
+
+        // Process the image with Sharp (Adding watermark)
+        const watermarkedImageBuffer = await sharp(s3Object.Body)
+            .composite([{ input: watermark, gravity: "southeast" }]) // Position watermark
+            .toFormat("png")
+            .toBuffer();
+
 
         // Save processed image to primary bucket
         const processedKey = `processed/${objectKey}`;
@@ -40,8 +71,34 @@ export const handler = async (event) => {
             Bucket: PRIMARY_BUCKET,
             Key: processedKey,
             Body: watermarkedImageBuffer,
-            ContentType: "image/jpeg",
+            ContentType: "image/png",
         });
+
+        const [userId, imageId, imageName] = s3Key.split('/');
+
+        console.log(`Image processed and saved to ${PRIMARY_BUCKET}/${processedKey}`);
+
+// Save metadata in DynamoDB
+        await dynamoDB.put({
+            TableName: TABLE_NAME,
+            Item: {
+                UserId: userId,
+                ImageId: imageId,
+                Filename: imageName,
+                ContentType: "image/png",
+                S3Key: s3Key,
+                S3Bucket: PRIMARY_BUCKET,
+                ProcessedUrl: `https://${PRIMARY_BUCKET}.s3.amazonaws.com/${processedKey}`,
+                CreatedAt: uploadDate,
+                Size: imageBuffer.length
+            }
+        });
+
+        // Delete original image from Staging bucket
+        await s3
+            .deleteObject({ Bucket: STAGING_BUCKET, Key: s3Key });
+
+        console.log(`Successfully processed ${s3Key}`);
 
         console.log(`Watermarked image saved to ${PRIMARY_BUCKET}/${processedKey}`);
         return createResponse(200, { message: "Watermark added successfully", key: processedKey });
