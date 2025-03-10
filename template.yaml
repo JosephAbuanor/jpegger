@@ -493,6 +493,8 @@ Resources:
             BucketName: !Ref StagingBucket
         - S3CrudPolicy:
             BucketName: !Ref PrimaryBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImagesTable
       Environment:
         Variables:
           PRIMARY_BUCKET: !Ref PrimaryBucket
