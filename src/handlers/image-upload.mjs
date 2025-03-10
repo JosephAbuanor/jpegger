@@ -17,7 +17,7 @@ export const handler = async (event) => {
 
     try {
         const body = JSON.parse(event.body || '{}');
-        const {image, userId, contentType, filename} = body;
+        const {image, userId, contentType, filename, userName} = body;
 
         if (!image || !userId || !contentType) {
             return createResponse(400, {
@@ -84,6 +84,7 @@ export const handler = async (event) => {
                 Payload: JSON.stringify({
                     imageId: imageId,
                     userId: userId,
+                    userName: userName,
                     s3Key: `${userId}/${imageId}/${imageName}`
                 })
             };

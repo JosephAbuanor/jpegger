@@ -12,7 +12,7 @@ const TABLE_NAME = process.env.TABLE_NAME;
 export const handler = async (event) => {
     console.log("Event received:", JSON.stringify(event, null, 2));
 
-    const { s3Key, userId } = event;
+    const { s3Key, userId, userName } = event;
 
     if (!s3Key || !userId) {
         console.error("Invalid event structure. S3Key or UserId missing");
@@ -31,7 +31,6 @@ export const handler = async (event) => {
 
         // Parse the S3 key to extract components
         const keyParts = objectKey.split('/');
-        const userName = keyParts[0]; // First part is userId/username
         const imageId = keyParts[1];
         const imageName = keyParts[2];
 
