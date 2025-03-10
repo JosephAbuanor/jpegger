@@ -28,8 +28,6 @@
     "@aws-sdk/lib-dynamodb": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "aws-sdk": "^2.1692.0",
-    "canvas": "^3.1.0",
-    "lambda-watermark": "^0.0.3",
     "sharp": "^0.33.5",
     "uuid": "^11.1.0"
   }
