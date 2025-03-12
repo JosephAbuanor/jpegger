@@ -195,7 +195,7 @@ Resources:
       UserPoolId: !Ref UserPool
 
   # DynamoDB Table
-  ImagesTable:
+  DynamoDBGlobalTable:
     Type: AWS::DynamoDB::GlobalTable
     Properties:
       TableName: !Ref DynamoDBGlobalTable
@@ -350,7 +350,7 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref StagingBucket
         - DynamoDBWritePolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
         - LambdaInvokePolicy:
             FunctionName: !Ref WatermarkHandler
       Events:
@@ -361,7 +361,7 @@ Resources:
             Method: post
       Environment:
         Variables:
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
           STAGING_BUCKET: !Ref StagingBucket
           WATERMARK_HANDLER_NAME: !Ref WatermarkHandler
 
@@ -371,12 +371,12 @@ Resources:
       Handler: src/handlers/all-images.handler
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
         - S3ReadPolicy:
             BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
           BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchAllImagesApi:
@@ -392,12 +392,12 @@ Resources:
       MemorySize: 128
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
         - S3ReadPolicy:
             BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
           BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchUserImagesApi:
@@ -413,12 +413,12 @@ Resources:
       MemorySize: 128
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
         - S3ReadPolicy:
             BucketName: !Ref BucketBin
       Environment:
         Variables:
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
           BIN_BUCKET: !Ref BucketBin
       Events:
         FetchUserImagesApi:
@@ -438,12 +438,12 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref BucketBin
         - DynamoDBCrudPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
       Environment:
         Variables:
           BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
       Events:
         MoveImageApi:
           Type: Api
@@ -462,12 +462,12 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref PrimaryBucket
         - DynamoDBCrudPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
       Environment:
         Variables:
           BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
       Events:
         MoveImageApi:
           Type: Api
@@ -484,11 +484,11 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref BucketBin
         - DynamoDBCrudPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
       Environment:
         Variables:
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
       Events:
         PermanentDeleteImageApi:
           Type: Api
@@ -527,13 +527,13 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref PrimaryBucket
         - DynamoDBCrudPolicy:
-            TableName: !Ref ImagesTable
+            TableName: !Ref DynamoDBGlobalTable
       Environment:
         Variables:
           PRIMARY_BUCKET: !Ref PrimaryBucket
           STAGING_BUCKET: !Ref StagingBucket
           REGION: !Ref PrimaryRegion
-          TABLE_NAME: !Ref ImagesTable
+          TABLE_NAME: !Ref DynamoDBGlobalTable
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer
@@ -559,7 +559,7 @@ Outputs:
   PrimaryBucketName:
     Value: !Ref PrimaryBucket
   ImagesTableName:
-    Value: !Ref ImagesTable
+    Value: !Ref DynamoDBGlobalTable
   UserPoolId:
     Value: !Ref UserPool
   UserPoolClientId:
