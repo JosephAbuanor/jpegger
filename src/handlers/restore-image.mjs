@@ -17,7 +17,7 @@ export const handler = async (event) => {
 
         if (!imageId && !s3Key) {
             return createResponse(400, {
-                message: 'Missing required parameters: imageId or s3Key is required'
+                message: 'Missing required parameters: imageId or s3Key is required!'
             });
         }
 
