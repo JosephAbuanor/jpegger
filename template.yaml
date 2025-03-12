@@ -336,11 +336,11 @@ Resources:
         - DynamoDBReadPolicy:
             TableName: !Ref ImagesTable
         - S3ReadPolicy:
-            BucketName: !Ref StagingBucket
+            BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
           TABLE_NAME: !Ref ImagesTable
-          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchAllImagesApi:
           Type: Api
@@ -357,11 +357,11 @@ Resources:
         - DynamoDBReadPolicy:
             TableName: !Ref ImagesTable
         - S3ReadPolicy:
-            BucketName: !Ref StagingBucket
+            BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
           TABLE_NAME: !Ref ImagesTable
-          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchUserImagesApi:
           Type: Api
@@ -461,7 +461,6 @@ Resources:
             Path: /delete-image
             Method: post
 
-  #TODO: change from staging bucket to primary bucket
   ShareImageHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -469,10 +468,10 @@ Resources:
       MemorySize: 128
       Policies:
         - S3ReadPolicy:
-            BucketName: !Ref StagingBucket
+            BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
-          BUCKET_NAME: !Ref StagingBucket
+          BUCKET_NAME: !Ref PrimaryBucket
       Events:
         ShareImageApi:
           Type: Api
@@ -481,7 +480,6 @@ Resources:
             Method: post
 
 
-#TODO: add watermark handler
   WatermarkHandler:
     Type: AWS::Serverless::Function
     Properties:

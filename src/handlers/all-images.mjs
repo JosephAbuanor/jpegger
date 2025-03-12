@@ -7,7 +7,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
 const s3 = new S3();
 const TABLE_NAME = process.env.TABLE_NAME;
-const STAGING_BUCKET_NAME = process.env.STAGING_BUCKET;
+const BUCKET_NAME = process.env.BUCKET_NAME;
 
 export const handler = async (event) => {
     console.log('Event received:', JSON.stringify(event, null, 2));
@@ -17,7 +17,7 @@ export const handler = async (event) => {
             TableName: TABLE_NAME,
             FilterExpression: 'S3Bucket = :bucket',
             ExpressionAttributeValues: {
-                ':bucket': STAGING_BUCKET_NAME
+                ':bucket': BUCKET_NAME
             }
         };
 
@@ -28,7 +28,7 @@ export const handler = async (event) => {
                 const signedUrl = await getSignedUrl(
                     s3,
                     new GetObjectCommand({
-                        Bucket: STAGING_BUCKET_NAME,
+                        Bucket: BUCKET_NAME,
                         Key: item.S3Key
                     }),
                     { expiresIn: 3600 } // 1-hour expiry
