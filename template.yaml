@@ -220,12 +220,14 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_IMAGE
       Replicas:
-        - Region: !Ref AWS::Region
-          PointInTimeRecoverySpecification:
-            PointInTimeRecoveryEnabled: true
-        - Region: !Ref DRRegion
-          PointInTimeRecoverySpecification:
-            PointInTimeRecoveryEnabled: true
+        - !If
+          - IsPrimaryRegion
+          - Region: !Ref PrimaryRegion
+            PointInTimeRecoverySpecification:
+              PointInTimeRecoveryEnabled: true
+          - Region: !Ref AWS::Region
+            PointInTimeRecoverySpecification:
+              PointInTimeRecoveryEnabled: true
 
 #  GlobalTable:
 #    Type: AWS::DynamoDB::Table
