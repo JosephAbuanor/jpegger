@@ -390,7 +390,6 @@ Resources:
             Path: /deleted-images
             Method: get
 
-#TODO: change from staging bucket to primary bucket
   SoftDeleteImageHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -398,14 +397,14 @@ Resources:
       MemorySize: 128
       Policies:
         - S3CrudPolicy:
-            BucketName: !Ref StagingBucket
+            BucketName: !Ref PrimaryBucket
         - S3WritePolicy:
             BucketName: !Ref BucketBin
         - DynamoDBCrudPolicy:
             TableName: !Ref ImagesTable
       Environment:
         Variables:
-          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
           TABLE_NAME: !Ref ImagesTable
       Events:
@@ -415,7 +414,6 @@ Resources:
             Path: /soft-delete-image
             Method: post
 
-#TODO: change from staging bucket to primary bucket
   RestoreImageHandler:
     Type: AWS::Serverless::Function
     Properties:
@@ -425,12 +423,12 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref BucketBin
         - S3WritePolicy:
-            BucketName: !Ref StagingBucket
+            BucketName: !Ref PrimaryBucket
         - DynamoDBCrudPolicy:
             TableName: !Ref ImagesTable
       Environment:
         Variables:
-          STAGING_BUCKET: !Ref StagingBucket
+          BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
           TABLE_NAME: !Ref ImagesTable
       Events:

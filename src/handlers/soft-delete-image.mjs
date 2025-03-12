@@ -4,7 +4,7 @@ import {DynamoDB} from '@aws-sdk/client-dynamodb';
 
 const s3 = new S3();
 const dynamoDB = DynamoDBDocument.from(new DynamoDB());
-const STAGING_BUCKET = process.env.STAGING_BUCKET;
+const BUCKET_NAME = process.env.BUCKET_NAME;
 const BUCKET_BIN = process.env.BUCKET_BIN;
 const TABLE_NAME = process.env.TABLE_NAME;
 
@@ -25,14 +25,14 @@ export const handler = async (event) => {
 // todo: switch to primary bucket
         // Copy the image to the bin bucket
         await s3.copyObject({
-            CopySource: `${STAGING_BUCKET}/${key}`,
+            CopySource: `${BUCKET_NAME}/${key}`,
             Bucket: BUCKET_BIN,
             Key: key
         });
 
         // Delete the image from the staging bucket
         await s3.deleteObject({
-            Bucket: STAGING_BUCKET,
+            Bucket: BUCKET_NAME,
             Key: key
         });
 
