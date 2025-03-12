@@ -71,7 +71,7 @@ export const handler = async (event) => {
         console.log("Watermark applied");
 
         // Save processed image to primary bucket
-        const processedKey = `processed/${objectKey}`;
+        const processedKey = `${objectKey}`;
         await s3.putObject({
             Bucket: PRIMARY_BUCKET,
             Key: processedKey,
