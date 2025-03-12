@@ -220,7 +220,7 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_IMAGE
       Replicas:
-        - Region: !Ref AWS::Region
+        - Region: !Ref PrimaryRegion
           PointInTimeRecoverySpecification:
             PointInTimeRecoveryEnabled: true
         - Region: !Ref DRRegion
