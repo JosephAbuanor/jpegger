@@ -265,7 +265,6 @@ Resources:
                 Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${DRRegion}'
               Status: Enabled
               Prefix: ""
-              Priority: 1
         - !Ref 'AWS::NoValue'
 
   BucketBin:
@@ -552,7 +551,6 @@ Resources:
           Properties:
             Path: /health
             Method: get
-
 
 Outputs:
   HelloWorldApi:
