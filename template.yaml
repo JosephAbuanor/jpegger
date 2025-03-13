@@ -45,6 +45,18 @@ Parameters:
   DRRegion:
     Type: String
     Default: "eu-west-1"
+  DomainName:
+    Type: String
+    Description: Domain name for the API
+    Default: "api.example.com"
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID
+    Default: "Z1234567890ABC"
+  AlertEmail:
+    Type: String
+    Description: Email address for DR notifications
+    Default: "dacostaful@gmail.com"
 
 Conditions:
   IsPrimaryRegion: !Equals [ !Ref AWS::Region, !Ref PrimaryRegion ]
@@ -250,9 +262,10 @@ Resources:
         - Role: !GetAtt S3ReplicationRole.Arn
           Rules:
             - Destination:
-                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}'
+                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${DRRegion}'
               Status: Enabled
               Prefix: ""
+              Priority: 1
         - !Ref 'AWS::NoValue'
 
   BucketBin:
@@ -266,6 +279,15 @@ Resources:
         RestrictPublicBuckets: false
       VersioningConfiguration:
         Status: Enabled
+      ReplicationConfiguration: !If
+        - IsPrimaryRegion
+        - Role: !GetAtt S3ReplicationRole.Arn
+          Rules:
+            - Destination:
+                Bucket: !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${DRRegion}'
+              Status: Enabled
+              Prefix: ""
+        - !Ref 'AWS::NoValue'
 
   S3ReplicationRole:
     Type: AWS::IAM::Role
@@ -291,22 +313,14 @@ Resources:
                   - s3:GetBucketVersioning
                   - s3:GetBucketLocation
                 Resource:
-                  - !If
-                    - IsPrimaryRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}'
-                    - !Ref 'AWS::NoValue'
-                  - !If
-                    - IsPrimaryRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}/*'
-                    - !Ref 'AWS::NoValue'
-                  - !If
-                    - IsDRRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}'
-                    - !Ref 'AWS::NoValue'
-                  - !If
-                    - IsDRRegion
-                    - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}/*'
-                    - !Ref 'AWS::NoValue'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${AWS::Region}/*'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${DRRegion}'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-primary-bucket-${DRRegion}/*'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${AWS::Region}/*'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${DRRegion}'
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-bucket-bin-${DRRegion}/*'
 
   ImageUploadHandler:
     Type: AWS::Serverless::Function
@@ -500,25 +514,275 @@ Resources:
           REGION: !Ref PrimaryRegion
           TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
 
-  RestAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
+#  RestAuthorizer:
+#    Type: AWS::ApiGateway::Authorizer
+#    Properties:
+#      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+#      IdentitySource: method.request.header.Authorization
+#      Name: CustomTokenAuthorizer
+#      RestApiId: !Sub ${ServerlessRestApi}
+#      Type: TOKEN
+
+
+  # API Gateway with custom domain
+  APIGateway:
+    Type: AWS::Serverless::Api
     Properties:
-      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
-      IdentitySource: method.request.header.Authorization
-      Name: CustomTokenAuthorizer
-      RestApiId: !Sub ${ServerlessRestApi}
-      Type: TOKEN
+      Name: !Sub "${AWS::StackName}-api-${AWS::Region}"
+      StageName: Prod
+      EndpointConfiguration:
+        Type: REGIONAL
+      AccessLogSetting:
+        DestinationArn: !GetAtt AccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","path":"$context.path","status":"$context.status","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency"}'
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: !Sub "${AWS::StackName} API"
+          version: '1.0'
+        securityDefinitions:
+          CustomAuthorizer:
+            type: apiKey
+            name: Authorization
+            in: header
+            x-amazon-apigateway-authtype: custom
+            x-amazon-apigateway-authorizer:
+              type: token
+              authorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+              authorizerResultTtlInSeconds: 300
+        paths: { }
+
+  APIGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      RegionalCertificateArn: !Ref APICertificate
+      DomainName: !If
+        - IsPrimaryRegion
+        - !Sub "api.${DomainName}"
+        - !Sub "dr-api.${DomainName}"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      SecurityPolicy: TLS_1_2
+
+  APIGatewayMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref APIGatewayDomainName
+      RestApiId: !Ref APIGateway
+      Stage: Prod
+
+  # Certificate for API Gateway
+  APICertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !If
+        - IsPrimaryRegion
+        - !Sub "api.${DomainName}"
+        - !Sub "dr-api.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !If
+            - IsPrimaryRegion
+            - !Sub "api.${DomainName}"
+            - !Sub "dr-api.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+
+  # Health Check and Failover Components
+  ApiHealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Condition: IsPrimaryRegion
+    Properties:
+      HealthCheckConfig:
+        Port: 443
+        Type: HTTPS
+        ResourcePath: /Prod/health
+        FullyQualifiedDomainName: !Sub "api.${DomainName}"
+        RequestInterval: 30
+        FailureThreshold: 3
+      HealthCheckTags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-api-health-check"
+
+  HealthCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsPrimaryRegion
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-api-health-alarm"
+      AlarmDescription: "Alarm when API Gateway health check fails"
+      MetricName: HealthCheckStatus
+      Namespace: AWS/Route53
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !Ref ApiHealthCheck
+      AlarmActions:
+        - !Ref FailoverSNSTopic
+      InsufficientDataActions:
+        - !Ref FailoverSNSTopic
+
+  # Simple endpoint for health check
+  HealthCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/health-check.handler
+      CodeUri: src/
+      Runtime: nodejs18.x
+      Events:
+        HealthCheckApi:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+            RestApiId: !Ref APIGateway
+
+  # Failover SNS Topic and Lambda
+  FailoverSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${AWS::StackName}-failover-topic"
+      TopicName: !Sub "${AWS::StackName}-failover-topic"
+
+  FailoverEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref FailoverSNSTopic
+      Endpoint: !Ref AlertEmail
+
+  FailoverLambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: IsPrimaryRegion
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref FailoverSNSTopic
+      Endpoint: !GetAtt FailoverLambda.Arn
+
+  FailoverLambda:
+    Type: AWS::Serverless::Function
+    Condition: IsPrimaryRegion
+    Properties:
+      Handler: src/handlers/failover.handler
+      CodeUri: src/
+      Runtime: nodejs18.x
+      Timeout: 60
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - route53:ChangeResourceRecordSets
+                - route53:GetChange
+                - route53:ListResourceRecordSets
+              Resource:
+                - !Sub "arn:aws:route53:::hostedzone/${HostedZoneId}"
+                - !Sub "arn:aws:route53:::change/*"
+      Environment:
+        Variables:
+          HOSTED_ZONE_ID: !Ref HostedZoneId
+          DOMAIN_NAME: !Ref DomainName
+          PRIMARY_REGION: !Ref PrimaryRegion
+          DR_REGION: !Ref DRRegion
+
+  FailoverLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsPrimaryRegion
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FailoverLambda
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref FailoverSNSTopic
+
+  # Route53 Records for API Gateway
+  ApiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsPrimaryRegion
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "api.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt APIGatewayDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt APIGatewayDomainName.RegionalHostedZoneId
+        EvaluateTargetHealth: true
+      SetIdentifier: !Sub "${AWS::StackName}-primary"
+      Weight: 100
+      HealthCheckId: !Ref ApiHealthCheck
+
+  DrApiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsDRRegion
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "api.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt APIGatewayDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt APIGatewayDomainName.RegionalHostedZoneId
+        EvaluateTargetHealth: true
+      SetIdentifier: !Sub "${AWS::StackName}-dr"
+      Weight: 0  # Will be changed to 100 by the failover lambda
+
+  # Failover recovery check
+  RecoveryCheckFunction:
+    Type: AWS::Serverless::Function
+    Condition: IsPrimaryRegion
+    Properties:
+      Handler: src/handlers/recovery-check.handler
+      CodeUri: src/
+      Runtime: nodejs18.x
+      Timeout: 60
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - route53:ChangeResourceRecordSets
+                - route53:GetChange
+                - route53:ListResourceRecordSets
+              Resource:
+                - !Sub "arn:aws:route53:::hostedzone/${HostedZoneId}"
+                - !Sub "arn:aws:route53:::change/*"
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref FailoverSNSTopic
+      Environment:
+        Variables:
+          HOSTED_ZONE_ID: !Ref HostedZoneId
+          DOMAIN_NAME: !Ref DomainName
+          PRIMARY_REGION: !Ref PrimaryRegion
+          DR_REGION: !Ref DRRegion
+          SNS_TOPIC_ARN: !Ref FailoverSNSTopic
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Name: RecoveryCheckSchedule
+            Description: "Check if primary region is healthy and can be restored"
+            Enabled: true
 
 Outputs:
-  HelloWorldApi:
-    Description: API Gateway endpoint URL for Prod stage for Hello World function
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: Hello World Lambda Function ARN
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: Implicit IAM Role created for Hello World function
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+#  HelloWorldApi:
+#    Description: API Gateway endpoint URL for Prod stage for Hello World function
+#    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  PrimaryApiEndpoint:
+    Description: Primary API Gateway endpoint URL
+    Value: !Sub "https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  CustomDomainEndpoint:
+    Description: Custom domain endpoint URL
+    Value: !Sub "https://${APIGatewayDomainName}/"
+  PrimaryRegion:
+    Description: Primary AWS Region
+    Value: !Ref PrimaryRegion
+  DRRegion:
+    Description: Disaster Recovery AWS Region
+    Value: !Ref DRRegion
   StagingBucketName:
     Value: !Ref StagingBucket
   PrimaryBucketName:
