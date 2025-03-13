@@ -3,16 +3,14 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   jpegger
 
-  Sample SAM Template for jpegger
+  Sample SAM Template for jpegger with enhanced disaster recovery capabilities
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 10
     MemorySize: 512
     Runtime: nodejs18.x
     Tracing: Active
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
     LoggingConfig:
       LogFormat: JSON
   Api:
@@ -47,11 +45,6 @@ Parameters:
   DRRegion:
     Type: String
     Default: "eu-west-1"
-#  DynamoDBGlobalTable:
-#    Type: String
-#    Default: !Sub '${AWS::StackName}-GlobalTable'
-#    Description: DynamoDB global table
-
 
 Conditions:
   IsPrimaryRegion: !Equals [ !Ref AWS::Region, !Ref PrimaryRegion ]
@@ -68,7 +61,7 @@ Resources:
         - nodejs18.x
 
   HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
       Handler: app.lambdaHandler
@@ -77,7 +70,7 @@ Resources:
         - x86_64
       Events:
         HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: Api
           Properties:
             Path: /hello
             Method: get
@@ -227,35 +220,6 @@ Resources:
         - Region: !Ref DRRegion
           PointInTimeRecoverySpecification:
             PointInTimeRecoveryEnabled: true
-
-
-#  GlobalTable:
-#    Type: AWS::DynamoDB::Table
-#    Properties:
-#      TableName: Images
-#      AttributeDefinitions:
-#        - AttributeName: UserId
-#          AttributeType: S
-#        - AttributeName: ImageId
-#          AttributeType: S
-#      KeySchema:
-#        - AttributeName: UserId
-#          KeyType: HASH
-#        - AttributeName: ImageId
-#          KeyType: RANGE
-#      GlobalSecondaryIndexes:
-#        - IndexName: UserIdIndex
-#          KeySchema:
-#            - AttributeName: UserId
-#              KeyType: HASH
-#          Projection:
-#            ProjectionType: ALL
-#          ProvisionedThroughput:
-#            ReadCapacityUnits: 5
-#            WriteCapacityUnits: 5
-#      ProvisionedThroughput:
-#        ReadCapacityUnits: 5
-#        WriteCapacityUnits: 5
 
   StagingBucket:
     Type: AWS::S3::Bucket
@@ -515,7 +479,6 @@ Resources:
           Properties:
             Path: /share-image
             Method: post
-
 
   WatermarkHandler:
     Type: AWS::Serverless::Function
