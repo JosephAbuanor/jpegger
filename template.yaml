@@ -86,7 +86,6 @@ Resources:
           Properties:
             Path: /hello
             Method: get
-            RestApiId: !Ref APIGateway
 
   AuthorizerFunction:
     Type: AWS::Serverless::Function
@@ -340,7 +339,6 @@ Resources:
           Properties:
             Path: /upload
             Method: post
-            RestApiId: !Ref APIGateway
       Environment:
         Variables:
           TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
@@ -366,7 +364,6 @@ Resources:
           Properties:
             Path: /images
             Method: GET
-            RestApiId: !Ref APIGateway
 
   FetchUserImagesHandler:
     Type: AWS::Serverless::Function
@@ -388,7 +385,6 @@ Resources:
           Properties:
             Path: /user-images
             Method: get
-            RestApiId: !Ref APIGateway
 
   FetchDeletedImagesHandler:
     Type: AWS::Serverless::Function
@@ -410,7 +406,6 @@ Resources:
           Properties:
             Path: /deleted-images
             Method: get
-            RestApiId: !Ref APIGateway
 
   SoftDeleteImageHandler:
     Type: AWS::Serverless::Function
@@ -435,7 +430,6 @@ Resources:
           Properties:
             Path: /soft-delete-image
             Method: post
-            RestApiId: !Ref APIGateway
 
   RestoreImageHandler:
     Type: AWS::Serverless::Function
@@ -460,7 +454,6 @@ Resources:
           Properties:
             Path: /restore-image
             Method: post
-            RestApiId: !Ref APIGateway
 
   PermanentDeleteImageHandler:
     Type: AWS::Serverless::Function
@@ -482,7 +475,6 @@ Resources:
           Properties:
             Path: /delete-image
             Method: post
-            RestApiId: !Ref APIGateway
 
   ShareImageHandler:
     Type: AWS::Serverless::Function
@@ -501,7 +493,6 @@ Resources:
           Properties:
             Path: /share-image
             Method: post
-            RestApiId: !Ref APIGateway
 
   WatermarkHandler:
     Type: AWS::Serverless::Function
@@ -523,43 +514,43 @@ Resources:
           REGION: !Ref PrimaryRegion
           TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
 
-#  RestAuthorizer:
-#    Type: AWS::ApiGateway::Authorizer
-#    Properties:
-#      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
-#      IdentitySource: method.request.header.Authorization
-#      Name: CustomTokenAuthorizer
-#      RestApiId: !Sub ${ServerlessRestApi}
-#      Type: TOKEN
+  RestAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+      IdentitySource: method.request.header.Authorization
+      Name: CustomTokenAuthorizer
+      RestApiId: !Sub ${ServerlessRestApi}
+      Type: TOKEN
 
 
   # API Gateway with custom domain
-  APIGateway:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub "${AWS::StackName}-api-${AWS::Region}"
-      StageName: Prod
-      EndpointConfiguration:
-        Type: REGIONAL
-      AccessLogSetting:
-        DestinationArn: !GetAtt AccessLogs.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","path":"$context.path","status":"$context.status","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency"}'
-      DefinitionBody:
-        swagger: '2.0'
-        info:
-          title: !Sub "${AWS::StackName} API"
-          version: '1.0'
-        securityDefinitions:
-          CustomAuthorizer:
-            type: apiKey
-            name: Authorization
-            in: header
-            x-amazon-apigateway-authtype: custom
-            x-amazon-apigateway-authorizer:
-              type: token
-              authorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
-              authorizerResultTtlInSeconds: 300
-        paths: { }
+#  APIGateway:
+#    Type: AWS::Serverless::Api
+#    Properties:
+#      Name: !Sub "${AWS::StackName}-api-${AWS::Region}"
+#      StageName: Prod
+#      EndpointConfiguration:
+#        Type: REGIONAL
+#      AccessLogSetting:
+#        DestinationArn: !GetAtt AccessLogs.Arn
+#        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","path":"$context.path","status":"$context.status","responseLength":"$context.responseLength","responseLatency":"$context.responseLatency"}'
+#      DefinitionBody:
+#        swagger: '2.0'
+#        info:
+#          title: !Sub "${AWS::StackName} API"
+#          version: '1.0'
+#        securityDefinitions:
+#          CustomAuthorizer:
+#            type: apiKey
+#            name: Authorization
+#            in: header
+#            x-amazon-apigateway-authtype: custom
+#            x-amazon-apigateway-authorizer:
+#              type: token
+#              authorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+#              authorizerResultTtlInSeconds: 300
+#        paths: { }
 
   APIGatewayDomainName:
     Type: AWS::ApiGateway::DomainName
@@ -574,12 +565,12 @@ Resources:
           - REGIONAL
       SecurityPolicy: TLS_1_2
 
-  APIGatewayMapping:
-    Type: AWS::ApiGateway::BasePathMapping
-    Properties:
-      DomainName: !Ref APIGatewayDomainName
-      RestApiId: !Ref APIGateway
-      Stage: Prod
+#  APIGatewayMapping:
+#    Type: AWS::ApiGateway::BasePathMapping
+#    Properties:
+#      DomainName: !Ref APIGatewayDomainName
+#      RestApiId: !Ref APIGateway
+#      Stage: Prod
 
   # Certificate for API Gateway
   APICertificate:
@@ -647,7 +638,6 @@ Resources:
           Properties:
             Path: /health
             Method: get
-            RestApiId: !Ref APIGateway
 
   # Failover SNS Topic and Lambda
   FailoverSNSTopic:
