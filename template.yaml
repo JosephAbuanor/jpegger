@@ -197,6 +197,7 @@ Resources:
   # DynamoDB Table
   GlobalTable:
     Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
     Properties:
       TableName: !Sub '${AWS::StackName}-GlobalTable'
       AttributeDefinitions:
