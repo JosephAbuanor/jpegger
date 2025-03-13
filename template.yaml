@@ -198,7 +198,7 @@ Resources:
   GlobalTable:
     Type: AWS::DynamoDB::GlobalTable
     Properties:
-      TableName: !Ref DynamoDBGlobalTable
+      TableName: !Sub '${AWS::StackName}-GlobalTable'
       AttributeDefinitions:
         - AttributeName: UserId
           AttributeType: S
@@ -209,13 +209,6 @@ Resources:
           KeyType: HASH
         - AttributeName: ImageId
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: UserIdIndex
-          KeySchema:
-            - AttributeName: UserId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
       StreamSpecification:
         StreamViewType: NEW_IMAGE
@@ -226,6 +219,13 @@ Resources:
         - Region: !Ref DRRegion
           PointInTimeRecoverySpecification:
             PointInTimeRecoveryEnabled: true
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
 #  GlobalTable:
 #    Type: AWS::DynamoDB::Table
