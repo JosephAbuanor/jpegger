@@ -86,6 +86,7 @@ Resources:
           Properties:
             Path: /hello
             Method: get
+            RestApiId: !Ref APIGateway
 
   AuthorizerFunction:
     Type: AWS::Serverless::Function
@@ -339,6 +340,7 @@ Resources:
           Properties:
             Path: /upload
             Method: post
+            RestApiId: !Ref APIGateway
       Environment:
         Variables:
           TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
@@ -364,6 +366,7 @@ Resources:
           Properties:
             Path: /images
             Method: GET
+            RestApiId: !Ref APIGateway
 
   FetchUserImagesHandler:
     Type: AWS::Serverless::Function
@@ -385,6 +388,7 @@ Resources:
           Properties:
             Path: /user-images
             Method: get
+            RestApiId: !Ref APIGateway
 
   FetchDeletedImagesHandler:
     Type: AWS::Serverless::Function
@@ -406,6 +410,7 @@ Resources:
           Properties:
             Path: /deleted-images
             Method: get
+            RestApiId: !Ref APIGateway
 
   SoftDeleteImageHandler:
     Type: AWS::Serverless::Function
@@ -430,6 +435,7 @@ Resources:
           Properties:
             Path: /soft-delete-image
             Method: post
+            RestApiId: !Ref APIGateway
 
   RestoreImageHandler:
     Type: AWS::Serverless::Function
@@ -454,6 +460,7 @@ Resources:
           Properties:
             Path: /restore-image
             Method: post
+            RestApiId: !Ref APIGateway
 
   PermanentDeleteImageHandler:
     Type: AWS::Serverless::Function
@@ -475,6 +482,7 @@ Resources:
           Properties:
             Path: /delete-image
             Method: post
+            RestApiId: !Ref APIGateway
 
   ShareImageHandler:
     Type: AWS::Serverless::Function
@@ -493,6 +501,7 @@ Resources:
           Properties:
             Path: /share-image
             Method: post
+            RestApiId: !Ref APIGateway
 
   WatermarkHandler:
     Type: AWS::Serverless::Function
