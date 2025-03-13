@@ -47,10 +47,10 @@ Parameters:
   DRRegion:
     Type: String
     Default: "eu-west-1"
-  DynamoDBGlobalTable:
-    Type: String
-    Default: "Images"
-    Description: DynamoDB global table
+#  DynamoDBGlobalTable:
+#    Type: String
+#    Default: !Sub '${AWS::StackName}-GlobalTable'
+#    Description: DynamoDB global table
 
 
 Conditions:
@@ -352,7 +352,7 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref StagingBucket
         - DynamoDBWritePolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
         - LambdaInvokePolicy:
             FunctionName: !Ref WatermarkHandler
       Events:
@@ -363,7 +363,7 @@ Resources:
             Method: post
       Environment:
         Variables:
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
           STAGING_BUCKET: !Ref StagingBucket
           WATERMARK_HANDLER_NAME: !Ref WatermarkHandler
 
@@ -373,12 +373,12 @@ Resources:
       Handler: src/handlers/all-images.handler
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
         - S3ReadPolicy:
             BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
           BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchAllImagesApi:
@@ -394,12 +394,12 @@ Resources:
       MemorySize: 128
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
         - S3ReadPolicy:
             BucketName: !Ref PrimaryBucket
       Environment:
         Variables:
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
           BUCKET_NAME: !Ref PrimaryBucket
       Events:
         FetchUserImagesApi:
@@ -415,12 +415,12 @@ Resources:
       MemorySize: 128
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
         - S3ReadPolicy:
             BucketName: !Ref BucketBin
       Environment:
         Variables:
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
           BIN_BUCKET: !Ref BucketBin
       Events:
         FetchUserImagesApi:
@@ -440,12 +440,12 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref BucketBin
         - DynamoDBCrudPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
       Environment:
         Variables:
           BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
       Events:
         MoveImageApi:
           Type: Api
@@ -464,12 +464,12 @@ Resources:
         - S3WritePolicy:
             BucketName: !Ref PrimaryBucket
         - DynamoDBCrudPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
       Environment:
         Variables:
           BUCKET_NAME: !Ref PrimaryBucket
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
       Events:
         MoveImageApi:
           Type: Api
@@ -486,11 +486,11 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref BucketBin
         - DynamoDBCrudPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
       Environment:
         Variables:
           BUCKET_BIN: !Ref BucketBin
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
       Events:
         PermanentDeleteImageApi:
           Type: Api
@@ -529,13 +529,13 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref PrimaryBucket
         - DynamoDBCrudPolicy:
-            TableName: !Ref GlobalTable
+            TableName: !Sub '${AWS::StackName}-GlobalTable'
       Environment:
         Variables:
           PRIMARY_BUCKET: !Ref PrimaryBucket
           STAGING_BUCKET: !Ref StagingBucket
           REGION: !Ref PrimaryRegion
-          TABLE_NAME: !Ref GlobalTable
+          TABLE_NAME: !Sub '${AWS::StackName}-GlobalTable'
 
   RestAuthorizer:
     Type: AWS::ApiGateway::Authorizer
@@ -561,7 +561,7 @@ Outputs:
   PrimaryBucketName:
     Value: !Ref PrimaryBucket
   ImagesTableName:
-    Value: !Ref GlobalTable
+    Value: !Sub '${AWS::StackName}-GlobalTable'
   UserPoolId:
     Value: !Ref UserPool
   UserPoolClientId:
